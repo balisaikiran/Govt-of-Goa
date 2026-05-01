@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Goa Interpreter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 4em auto; padding: 0 1em; color: #222; }
+  h1 { margin-bottom: .2em; }
+  .row { display: flex; gap: 1em; margin: 1em 0; }
+  input, button, select, textarea { font: inherit; padding: .5em .7em; }
+  button { cursor: pointer; }
+  .out { background: #f6f6f8; padding: 1em; border-radius: .5em; white-space: pre-wrap; word-break: break-all; }
+  fieldset { margin: 1em 0; padding: 1em; }
+  label { display: block; margin: .5em 0 .2em; font-weight: 600; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+  <h1>Goa Interpreter</h1>
+  <p>One master speaker → many languages, in the master's voice.</p>
+
+  <fieldset>
+    <legend>1. Clone master voice <small>(optional)</small></legend>
+    <small>Upload a 30s+ clean recording of the master's voice. Or skip — we'll use a default voice.</small>
+    <div class="row">
+      <input type="text" id="cloneName" placeholder="Voice name" value="Master" />
+      <input type="file" id="cloneFile" accept="audio/*" />
+      <button id="cloneBtn">Clone</button>
+    </div>
+    <div class="out" id="cloneOut">voice_id will appear here</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Start session</legend>
+    <label>Target languages (comma-separated codes, e.g. <code>hi,es,fr</code>)</label>
+    <input type="text" id="targets" value="hi,es" style="width:100%" />
+    <label>Voice ID <small>(from step 1, or leave blank for default)</small></label>
+    <input type="text" id="voiceId" placeholder="leave blank for default" style="width:100%" />
+    <div class="row">
+      <button id="startBtn">Start session</button>
+    </div>
+    <div class="out" id="startOut">session details will appear here</div>
+  </fieldset>
+
+  <p>Then open <code>/clients/master.html?session=…</code> on the master device, and
+  <code>/clients/listener.html?session=…&amp;lang=hi</code> on each audience device.</p>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+$("cloneBtn").addEventListener("click", async () => {
+  const file = $("cloneFile").files[0];
+  if (!file) { $("cloneOut").textContent = "pick an audio file first"; return; }
+  const fd = new FormData();
+  fd.append("name", $("cloneName").value || "Master");
+  fd.append("sample", file);
+  $("cloneOut").textContent = "uploading…";
+  const r = await fetch("/voice/clone", { method: "POST", body: fd });
+  if (!r.ok) { $("cloneOut").textContent = `error: ${await r.text()}`; return; }
+  const j = await r.json();
+  $("cloneOut").textContent = `voice_id: ${j.voice_id}`;
+  $("voiceId").value = j.voice_id;
+});
+
+$("startBtn").addEventListener("click", async () => {
+  const targets = $("targets").value.split(",").map(s => s.trim()).filter(Boolean);
+  const voiceId = $("voiceId").value.trim() || null;
+  $("startOut").textContent = "starting…";
+  const r = await fetch("/session/start", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({target_languages: targets, voice_id: voiceId}),
+  });
+  if (!r.ok) { $("startOut").textContent = `error: ${await r.text()}`; return; }
+  const j = await r.json();
+  const masterUrl = `/clients/master.html?session=${j.session_id}`;
+  const listeners = Object.entries(j.listeners).map(([lang, _]) =>
+    `<li><a target="_blank" href="/clients/listener.html?session=${j.session_id}&lang=${lang}">${lang}</a></li>`
+  ).join("");
+  $("startOut").innerHTML =
+    `<b>session id:</b> ${j.session_id}<br>` +
+    `<b>livekit url:</b> ${j.livekit_url}<br>` +
+    `<b>master:</b> <a target="_blank" href="${masterUrl}">${masterUrl}</a><br>` +
+    `<b>listeners:</b><ul>${listeners}</ul>` +
+    `<details><summary>raw response</summary><pre>${JSON.stringify(j, null, 2)}</pre></details>`;
+  // stash for the master/listener pages
+  sessionStorage.setItem("session-" + j.session_id, JSON.stringify(j));
+});
+</script>
+</body>
+</html>

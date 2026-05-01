@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Listener · Goa Interpreter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.7.4/dist/livekit-client.umd.min.js"></script>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 3em auto; padding: 0 1em; }
+  button { font: inherit; padding: .8em 1.4em; }
+  .out { background: #f6f6f8; padding: 1em; border-radius: .5em; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>Listener · <span id="lang"></span></h1>
+  <p id="status">starting…</p>
+  <p><button id="connectBtn" disabled>Listen</button></p>
+  <audio id="audio" autoplay playsinline controls></audio>
+  <div class="out" id="info"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const sessionId = params.get("session");
+const lang = params.get("lang");
+document.getElementById("lang").textContent = lang || "?";
+
+if (!sessionId || !lang) {
+  document.body.innerHTML =
+    "<p>missing ?session=…&lang=… — go back to <a href='/'>/</a></p>";
+  throw new Error("missing args");
+}
+
+const stored = sessionStorage.getItem("session-" + sessionId);
+let sess = stored ? JSON.parse(stored) : null;
+
+if (!sess || !sess.listeners[lang]) {
+  document.getElementById("status").textContent =
+    "session/lang details not in storage — start session from /";
+} else {
+  document.getElementById("status").textContent = "ready. click Listen.";
+  document.getElementById("info").textContent =
+    `room: ${sess.listeners[lang].room}\nurl: ${sess.livekit_url}`;
+  document.getElementById("connectBtn").disabled = false;
+}
+
+document.getElementById("connectBtn").addEventListener("click", async () => {
+  const Lk = LivekitClient;
+  const room = new Lk.Room({ adaptiveStream: true, dynacast: false });
+  room.on(Lk.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    if (track.kind === "audio") {
+      track.attach(document.getElementById("audio"));
+      document.getElementById("status").textContent =
+        "🔊 hearing " + participant.identity;
+    }
+  });
+  await room.connect(sess.livekit_url, sess.listeners[lang].token);
+  document.getElementById("status").textContent = "connected, waiting for audio…";
+  document.getElementById("connectBtn").disabled = true;
+});
+</script>
+</body>
+</html>
