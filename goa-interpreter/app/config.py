@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     elevenlabs_default_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     elevenlabs_model: str = "eleven_multilingual_v2"
 
+    # OmniVoice (self-hosted via OmniVoice-local). Empty disables OmniVoice.
+    omnivoice_url: str = "http://localhost:8000"
+    voices_dir: str = "voices"
+    default_tts_provider: str = "elevenlabs"  # elevenlabs | omnivoice
+
     source_language: str = "en"
 
     host: str = "0.0.0.0"

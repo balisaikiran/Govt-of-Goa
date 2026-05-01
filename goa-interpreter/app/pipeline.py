@@ -9,12 +9,14 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.audio.vad_processor import VADProcessor
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.tts_service import TTSService
 from pipecat.transcriptions.language import Language
 from pipecat.transports.base_transport import TransportParams
 from pipecat.transports.livekit.transport import LiveKitTransport
 
 from app.config import Settings
 from app.livekit_tokens import agent_token
+from app.omnivoice import OmniVoiceTTSService
 from app.orchestrator import StablePhraseBuffer
 from app.processors import TranscriptionLogger
 from app.sessions import Session
@@ -91,11 +93,20 @@ def _stt_service(settings: Settings, source_language: str) -> DeepgramSTTService
     )
 
 
-def _tts_service(settings: Settings, target_language: str, voice_id: str) -> ElevenLabsTTSService:
+def _tts_service(
+    settings: Settings, session: Session, target_language: str
+) -> TTSService:
+    if session.tts_provider == "omnivoice":
+        return OmniVoiceTTSService(
+            base_url=settings.omnivoice_url,
+            voice_sample=session.voice_id,
+            language=_language(target_language),
+            sample_rate=OUTPUT_SAMPLE_RATE,
+        )
     return ElevenLabsTTSService(
         api_key=settings.elevenlabs_api_key,
         settings=ElevenLabsTTSService.Settings(
-            voice=voice_id,
+            voice=session.voice_id,
             model=settings.elevenlabs_model,
             language=_language(target_language),
         ),
@@ -115,7 +126,7 @@ def _language_branch(
             target_language=lang,
             model=settings.translation_model,
         ),
-        _tts_service(settings, lang, session.voice_id),
+        _tts_service(settings, session, lang),
         out_transport.output(),
     ]
     return branch, out_transport

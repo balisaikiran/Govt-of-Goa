@@ -10,6 +10,7 @@ class Session:
     source_language: str
     target_languages: list[str]
     voice_id: str
+    tts_provider: str = "elevenlabs"  # "elevenlabs" | "omnivoice"
 
     @property
     def master_room(self) -> str:
@@ -27,7 +28,11 @@ class SessionRegistry:
     _by_id: dict[str, Session] = field(default_factory=dict)
 
     def create(
-        self, source_language: str, target_languages: list[str], voice_id: str
+        self,
+        source_language: str,
+        target_languages: list[str],
+        voice_id: str,
+        tts_provider: str = "elevenlabs",
     ) -> Session:
         sid = secrets.token_urlsafe(6)
         session = Session(
@@ -35,6 +40,7 @@ class SessionRegistry:
             source_language=source_language,
             target_languages=target_languages,
             voice_id=voice_id,
+            tts_provider=tts_provider,
         )
         self._by_id[sid] = session
         return session
